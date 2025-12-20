@@ -3,303 +3,356 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LIFF GPS 追蹤 (最終版)</title>
+    <title>LIFF 超強地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f0f0f0; overflow: hidden; }
         #map { height: 100vh; width: 100%; z-index: 1; }
         
-        /* 控制面板 */
+        /* 頂部：距離顯示條 */
+        #distance-bar {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            background: rgba(0, 0, 0, 0.8); color: #fff;
+            padding: 10px; border-radius: 30px;
+            text-align: center; font-weight: bold; font-size: 1.1rem;
+            z-index: 1000; display: none; /* 預設隱藏，有旗子才顯示 */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+        #distance-bar span { color: #00ffea; }
+
+        /* 底部：控制面板 */
         #controls {
-            position: absolute;
-            top: 10px; left: 10px; right: 10px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px; border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            max-width: 400px; margin: 0 auto;
-        }
-        
-        h3 { margin: 0 0 10px 0; text-align: center; font-size: 1.1rem; color: #333; }
-        
-        input {
-            width: 100%; padding: 10px; margin-bottom: 8px;
-            border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px;
-        }
-        
-        button {
-            width: 100%; padding: 12px; margin-bottom: 8px;
-            border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        #btnConnect { background-color: #007bff; color: white; }
-        #btnDisconnect { background-color: #dc3545; color: white; display: none; }
-        #btnMove { background-color: #6c757d; color: white; font-size: 0.9rem; } 
-        
-        /* 系統訊息提示框 (右下角) */
-        #system-msg {
-            position: absolute;
-            bottom: 30px; left: 20px; right: 20px;
-            z-index: 2000;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 12px;
-            border-radius: 25px;
-            text-align: center;
-            font-size: 0.9rem;
-            display: none;
-            pointer-events: none; /* 讓點擊穿透 */
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: white; border-top-left-radius: 20px; border-top-right-radius: 20px;
+            padding: 15px 20px 30px 20px; z-index: 1000;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
         }
 
-        .status-text { text-align: center; font-size: 0.85rem; margin-top: 5px; color: #666; }
+        /* 狀態按鈕列 (橫向捲動) */
+        .status-scroll {
+            display: flex; overflow-x: auto; gap: 10px; padding-bottom: 10px; margin-bottom: 10px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .status-btn {
+            background: #f1f3f5; border: 1px solid #ddd; border-radius: 20px;
+            padding: 8px 16px; font-size: 0.9rem; color: #333; white-space: nowrap; cursor: pointer;
+        }
+        .status-btn:active { background: #e9ecef; transform: scale(0.95); }
+
+        /* 主要按鈕區 */
+        .main-actions { display: flex; gap: 10px; }
+        .action-btn {
+            flex: 1; padding: 12px; border: none; border-radius: 10px;
+            font-size: 1rem; font-weight: bold; cursor: pointer; color: white;
+        }
+        #btnFlag { background-color: #ff9800; } /* 橘色 */
+        #btnShare { background-color: #06c755; } /* LINE 綠 */
+        #btnConnect { background-color: #007bff; width: 100%; }
+
+        /* 登入表單 */
+        #login-form { text-align: center; margin-bottom: 10px; }
+        input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+
+        /* 系統通知 */
+        #system-msg {
+            position: absolute; bottom: 200px; left: 20px; right: 20px;
+            z-index: 2000; background-color: rgba(0,0,0,0.7); color: white;
+            padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem;
+            display: none; pointer-events: none;
+        }
+        
+        /* 氣泡樣式 */
+        .leaflet-tooltip.status-bubble {
+            background-color: white; border: 2px solid #333; color: black; font-weight: bold;
+            font-size: 14px; padding: 5px 10px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .leaflet-tooltip-bottom:before { border-bottom-color: #333; }
     </style>
 </head>
 <body>
 
-    <div id="controls">
-        <h3>📍 GPS 即時分享</h3>
-        <input type="text" id="roomId" placeholder="房號 (自動轉小寫)" value="room1" oninput="this.value = this.value.toLowerCase()">
-        <input type="text" id="userName" placeholder="您的暱稱" value="">
-        
-        <button id="btnConnect" onclick="connect()">🚀 啟動 GPS 並加入</button>
-        <button id="btnDisconnect" onclick="disconnect()">❌ 停止分享</button>
-        
-        <button id="btnMove" onclick="simulateMove()" disabled>🏃 手動模擬移動 (備用)</button>
-        
-        <div id="status" class="status-text">請輸入暱稱後加入</div>
-    </div>
+    <div id="distance-bar">🏁 距離集合點：<span id="dist-val">計算中...</span></div>
 
     <div id="system-msg"></div>
+
+    <div id="controls">
+        <div id="login-form">
+            <h3>📍 即時集合地圖</h3>
+            <input type="text" id="roomId" value="room1" placeholder="輸入房號" oninput="this.value = this.value.toLowerCase()">
+            <button id="btnConnect" class="action-btn" onclick="connect()">🚀 啟動定位並加入</button>
+        </div>
+
+        <div id="active-panel" style="display: none;">
+            <div class="status-scroll">
+                <button class="status-btn" onclick="sendStatus('🏃 快到了')">🏃 快到了</button>
+                <button class="status-btn" onclick="sendStatus('🐢 塞車中')">🐢 塞車中</button>
+                <button class="status-btn" onclick="sendStatus('🤔 迷路了')">🤔 迷路了</button>
+                <button class="status-btn" onclick="sendStatus('🚽 找廁所')">🚽 找廁所</button>
+                <button class="status-btn" onclick="sendStatus('🅿️ 找車位')">🅿️ 找車位</button>
+            </div>
+
+            <div class="main-actions">
+                <button id="btnFlag" class="action-btn" onclick="toggleFlagMode()">🚩 設定集合點</button>
+                <button id="btnShare" class="action-btn" onclick="shareToFriends()">📤 邀請朋友</button>
+            </div>
+            <div style="text-align:center; margin-top:10px; font-size:0.8rem; color:#888;">
+                <span id="status-text">連線中...</span> 
+                | <a href="#" onclick="disconnect()" style="color:#dc3545; text-decoration:none;">離開</a>
+            </div>
+        </div>
+    </div>
 
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
     <script>
-        // 1. 初始化地圖
-        const map = L.map('map').setView([25.0330, 121.5654], 16);
+        // 設定區
+        const LIFF_ID = "2008736917-XphF2Hry"; // 您的 LIFF ID
+        
+        // 地圖初始化
+        const map = L.map('map', { zoomControl: false }).setView([25.0330, 121.5654], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // 變數宣告
+        // 變數
         let ws = null;
         let myMarker = null;
-        const otherMarkers = {}; // 儲存其他人的標記
-        let heartbeatInterval = null;
-        let reconnectTimeout = null;
-        let watchId = null; // GPS 監聽 ID
-        let isManuallyDisconnected = false;
+        let flagMarker = null; // 集合點標記
+        const otherMarkers = {};
+        let myProfile = { name: "User", pictureUrl: "" };
+        let myLat = null, myLng = null;
+        let isFlagMode = false;
+        let heartbeatInterval, reconnectTimeout;
 
-        // 2. 連線與 GPS 啟動
+        // 1. LIFF 初始化
+        window.onload = async function() {
+            try {
+                await liff.init({ liffId: LIFF_ID });
+                if (!liff.isLoggedIn()) { liff.login(); return; }
+                
+                const profile = await liff.getProfile();
+                myProfile.name = profile.displayName;
+                myProfile.pictureUrl = profile.pictureUrl;
+
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('room')) document.getElementById('roomId').value = urlParams.get('room');
+
+            } catch (err) {
+                console.error(err);
+                // 即使 LIFF 失敗也允許測試
+            }
+        };
+
+        // 2. 連線與主要邏輯
         function connect() {
-            if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            isManuallyDisconnected = false;
-
             const roomId = document.getElementById('roomId').value;
-            const name = document.getElementById('userName').value;
-            
-            if (!roomId || !name) { alert("請輸入房號和暱稱！"); return; }
+            if (!roomId) return alert("請輸入房號");
 
-            // 自動切換 wss/ws
+            // 切換介面
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('active-panel').style.display = 'block';
+
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/${roomId}`;
-
-            updateStatus("連線伺服器中...", "orange");
-
+            
             try {
                 ws = new WebSocket(wsUrl);
-            } catch (e) {
-                console.error(e);
-                scheduleReconnect();
-                return;
-            }
-
-            ws.onopen = () => {
-                updateStatus("✅ 連線成功！正在取得 GPS...", "green");
-                toggleUI(true);
-                
-                // ★ 連線成功後，立刻啟動 GPS
-                startTracking();
-                startHeartbeat();
-            };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                
-                // 系統廣播
-                if (data.type === 'system') {
-                    showSystemMessage(data.msg);
-                }
-                // 位置更新
-                else if (data.type === 'location') {
-                    updateOtherMarker(data);
-                }
-            };
-
-            ws.onclose = (event) => {
-                toggleUI(false);
-                stopHeartbeat();
-                stopTracking(); // 斷線時停止 GPS 監聽以省電
-
-                if (isManuallyDisconnected) {
-                    updateStatus("已離線", "gray");
-                } else {
-                    updateStatus("連線中斷，3秒後重連...", "red");
+                ws.onopen = () => {
+                    updateStatus("✅ 連線成功");
+                    startTracking();
+                    startHeartbeat();
+                };
+                ws.onmessage = (e) => {
+                    const data = JSON.parse(e.data);
+                    handleMessage(data);
+                };
+                ws.onclose = () => {
+                    updateStatus("斷線重連中...");
                     scheduleReconnect();
-                }
-            };
+                };
+            } catch(e) { console.error(e); }
         }
 
-        // 3. 真實 GPS 追蹤核心
-        function startTracking() {
-            if (!navigator.geolocation) {
-                alert("您的瀏覽器不支援地理位置功能");
-                return;
+        function handleMessage(data) {
+            if (data.type === 'location') {
+                updateOtherMarker(data);
+            } else if (data.type === 'flag') {
+                // 收到集合點更新
+                updateFlag(data.lat, data.lng, data.setter);
+            } else if (data.type === 'status') {
+                // 收到狀態氣泡
+                showStatusBubble(data.name, data.msg);
+            } else if (data.type === 'system') {
+                showSystemMsg(data.msg);
             }
+        }
 
-            // 使用 watchPosition 持續監聽
-            watchId = navigator.geolocation.watchPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    
-                    // 收到新位置 -> 更新地圖 & 發送
-                    updateMyLocation(lat, lng);
-                    updateStatus("GPS 訊號良好 (傳送中 🟢)", "green");
+        // 3. 集合點功能 (Feature 1 & 3)
+        function toggleFlagMode() {
+            isFlagMode = !isFlagMode;
+            const btn = document.getElementById('btnFlag');
+            if (isFlagMode) {
+                btn.innerText = "📍 請點擊地圖插旗";
+                btn.style.backgroundColor = "#dc3545"; // 紅色提示
+                showSystemMsg("請點擊地圖任一處設定集合點");
+            } else {
+                btn.innerText = "🚩 設定集合點";
+                btn.style.backgroundColor = "#ff9800";
+            }
+        }
+
+        // 點擊地圖事件
+        map.on('click', function(e) {
+            if (isFlagMode && ws) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                
+                // 發送 Flag 事件給 Server
+                ws.send(JSON.stringify({
+                    type: 'flag', lat: lat, lng: lng, setter: myProfile.name
+                }));
+
+                // 關閉模式
+                toggleFlagMode();
+            }
+        });
+
+        function updateFlag(lat, lng, setterName) {
+            if (flagMarker) map.removeLayer(flagMarker);
+            
+            // 建立旗子標記
+            const flagIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="font-size:30px;">🏁</div>`,
+                iconSize: [30, 30], iconAnchor: [15, 30]
+            });
+            
+            flagMarker = L.marker([lat, lng], {icon: flagIcon}).addTo(map)
+                .bindPopup(`<b>集合點</b><br>由 ${setterName} 設定`).openPopup();
+            
+            showSystemMsg(`${setterName} 更新了集合點！`);
+            
+            // 顯示距離條
+            document.getElementById('distance-bar').style.display = 'block';
+            calculateDistance(); // 立即計算一次
+        }
+
+        // 計算距離 (Feature 3)
+        function calculateDistance() {
+            if (!flagMarker || myLat === null) return;
+            
+            const from = L.latLng(myLat, myLng);
+            const to = flagMarker.getLatLng();
+            const meters = from.distanceTo(to); // Leaflet 內建距離計算 (公尺)
+            
+            let text = "";
+            if (meters < 10) text = "已抵達！🎉";
+            else if (meters < 1000) text = `${Math.round(meters)} 公尺`;
+            else text = `${(meters/1000).toFixed(1)} 公里`;
+            
+            document.getElementById('dist-val').innerText = text;
+        }
+
+        // 4. 狀態氣泡功能 (Feature 2)
+        function sendStatus(msg) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'status', name: myProfile.name, msg: msg
+                }));
+                // 自己也要顯示
+                showStatusBubble(myProfile.name, msg); 
+            }
+        }
+
+        function showStatusBubble(name, msg) {
+            let targetMarker = (name === myProfile.name) ? myMarker : otherMarkers[name];
+            
+            if (targetMarker) {
+                targetMarker.bindTooltip(msg, {
+                    permanent: true, 
+                    direction: 'top', 
+                    className: 'status-bubble',
+                    offset: [0, -20]
+                }).openTooltip();
+
+                // 5秒後自動消失
+                setTimeout(() => {
+                    targetMarker.unbindTooltip();
+                }, 5000);
+            }
+        }
+
+        // 5. GPS 追蹤與基本功能
+        function startTracking() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    myLat = pos.coords.latitude;
+                    myLng = pos.coords.longitude;
+                    updateMyLocation(myLat, myLng);
+                    calculateDistance(); // 每次移動都重新算距離
                 },
-                (error) => {
-                    console.error("GPS Error:", error);
-                    let errMsg = "無法取得位置";
-                    if (error.code === 1) errMsg = "請允許位置權限";
-                    else if (error.code === 2) errMsg = "GPS 訊號微弱";
-                    else if (error.code === 3) errMsg = "GPS 逾時";
-                    
-                    updateStatus(`⚠️ ${errMsg}`, "red");
-                },
-                {
-                    enableHighAccuracy: true, // 高精準度
-                    timeout: 10000,
-                    maximumAge: 0
-                }
+                err => console.error(err),
+                { enableHighAccuracy: true }
             );
         }
 
-        function stopTracking() {
-            if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
-        }
-
-        // 4. 更新我的位置
         function updateMyLocation(lat, lng) {
-            const name = document.getElementById('userName').value;
-            
             if (!myMarker) {
-                // 建立藍色標記 (自己)
-                myMarker = L.marker([lat, lng], {draggable: true}).addTo(map)
-                    .bindPopup(`<b>${name} (我)</b>`).openPopup();
-                
-                // 為了方便測試，拖曳自己的標記也可以觸發更新
-                myMarker.on('dragend', (e) => {
-                    const pos = e.target.getLatLng();
-                    updateMyLocation(pos.lat, pos.lng);
+                const icon = L.divIcon({
+                    html: `<div style="background-image:url('${myProfile.pictureUrl || 'https://via.placeholder.com/40'}');width:40px;height:40px;background-size:cover;border-radius:50%;border:3px solid #06c755;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                    className: '', iconSize: [40, 40], iconAnchor: [20, 20]
                 });
+                myMarker = L.marker([lat, lng], {icon: icon}).addTo(map).bindPopup("我");
+                map.panTo([lat, lng]);
             } else {
                 myMarker.setLatLng([lat, lng]);
             }
-            
-            // 鏡頭跟隨
-            map.panTo([lat, lng]);
 
-            // 發送 WebSocket
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
-                    type: 'location',
-                    lat: lat,
-                    lng: lng,
-                    name: name,
-                    avatar: "default"
+                    type: 'location', lat: lat, lng: lng, name: myProfile.name, avatar: myProfile.pictureUrl
                 }));
             }
         }
 
-        // 5. 更新其他人位置
         function updateOtherMarker(data) {
-            const { name, lat, lng } = data;
-            
+            const { name, lat, lng, avatar } = data;
             if (otherMarkers[name]) {
                 otherMarkers[name].setLatLng([lat, lng]);
-                // 更新 popup 內容確保名字正確
-                otherMarkers[name].getPopup().setContent(`<b>${name}</b>`);
             } else {
-                // 建立紅色標記 (別人)
-                const redIcon = new L.Icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+                const icon = L.divIcon({
+                    html: `<div style="background-image:url('${avatar || 'https://via.placeholder.com/40'}');width:40px;height:40px;background-size:cover;border-radius:50%;border:3px solid #ff3333;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                    className: '', iconSize: [40, 40], iconAnchor: [20, 20]
                 });
-                
-                otherMarkers[name] = L.marker([lat, lng], {icon: redIcon}).addTo(map)
-                    .bindPopup(`<b>${name}</b>`);
+                otherMarkers[name] = L.marker([lat, lng], {icon: icon}).addTo(map).bindPopup(name);
             }
         }
 
-        // 6. 輔助功能 (重連、心跳、UI)
-        function disconnect() {
-            isManuallyDisconnected = true;
-            if (ws) ws.close();
-        }
-
-        function scheduleReconnect() {
-            if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            reconnectTimeout = setTimeout(() => {
-                console.log("嘗試重連...");
-                connect();
-            }, 3000);
-        }
-
-        function startHeartbeat() {
-            if(heartbeatInterval) clearInterval(heartbeatInterval);
-            heartbeatInterval = setInterval(() => {
-                if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'ping'}));
-            }, 30000);
-        }
-        function stopHeartbeat() { if(heartbeatInterval) clearInterval(heartbeatInterval); }
-
-        function simulateMove() {
-            if (!myMarker) {
-                const center = map.getCenter();
-                updateMyLocation(center.lat, center.lng);
+        // 輔助功能
+        function shareToFriends() {
+            const url = `https://liff.line.me/${LIFF_ID}?room=${document.getElementById('roomId').value}`;
+            if (liff.isApiAvailable('shareTargetPicker')) {
+                liff.shareTargetPicker([{
+                    type: "flex", altText: "加入地圖",
+                    contents: { type: "bubble", body: { type: "box", layout: "vertical", contents: [
+                        { type: "text", text: "📍 點此加入即時地圖", weight: "bold", size: "lg", color: "#06c755" },
+                        { type: "text", text: "查看大家的位置與集合點", size: "xs", color: "#aaaaaa" }
+                    ] }, footer: { type: "box", layout: "vertical", contents: [{ type: "button", action: { type: "uri", label: "開啟地圖", uri: url } }] } }
+                }]);
+            } else {
+                navigator.clipboard.writeText(url).then(() => alert("網址已複製"));
             }
-            const cur = myMarker.getLatLng();
-            // 隨機移動一點點
-            updateMyLocation(cur.lat + (Math.random()-0.5)*0.003, cur.lng + (Math.random()-0.5)*0.003);
         }
 
-        function showSystemMessage(msg) {
-            const el = document.getElementById('system-msg');
-            el.innerText = msg;
-            el.style.display = 'block';
-            setTimeout(() => { el.style.display = 'none'; }, 4000);
-        }
-
-        function toggleUI(connected) {
-            document.getElementById('btnConnect').style.display = connected ? 'none' : 'block';
-            document.getElementById('btnDisconnect').style.display = connected ? 'block' : 'none';
-            document.getElementById('roomId').disabled = connected;
-            document.getElementById('userName').disabled = connected;
-            
-            const btnMove = document.getElementById('btnMove');
-            btnMove.disabled = !connected;
-            // 模擬按鈕變色提示
-            btnMove.style.backgroundColor = connected ? '#6c757d' : '#ccc';
-        }
-
-        function updateStatus(msg, color) {
-            const el = document.getElementById('status');
-            el.innerText = msg;
-            el.style.color = color || '#666';
-        }
+        function disconnect() { if(ws) ws.close(); location.reload(); }
+        function scheduleReconnect() { if(reconnectTimeout) clearTimeout(reconnectTimeout); reconnectTimeout = setTimeout(connect, 3000); }
+        function startHeartbeat() { if(heartbeatInterval) clearInterval(heartbeatInterval); heartbeatInterval = setInterval(() => { if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'ping'})); }, 30000); }
+        function updateStatus(msg) { document.getElementById('status-text').innerText = msg; }
+        function showSystemMsg(msg) { const el = document.getElementById('system-msg'); el.innerText = msg; el.style.display='block'; setTimeout(()=>el.style.display='none', 3000); }
     </script>
 </body>
 </html>
