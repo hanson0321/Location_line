@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 地圖分享測試</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .control-panel { border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 10px; }
+        label { display: inline-block; width: 80px; font-weight: bold; }
+        input { padding: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 8px 15px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; }
+        button:disabled { background-color: #ccc; }
+        button.disconnect { background-color: #dc3545; }
+        #log { background: #f4f4f4; border: 1px solid #ddd; height: 300px; overflow-y: scroll; padding: 10px; font-family: monospace; white-space: pre-wrap; }
+        .received { color: green; }
+        .sent { color: blue; }
+        .status { color: gray; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <h2>📍 WebSocket 即時位置測試</h2>
+
+    <div class="control-panel">
+        <div class="input-group">
+            <label>Room ID:</label>
+            <input type="text" id="roomId" value="room1">
+        </div>
+        <div class="input-group">
+            <label>您的名字:</label>
+            <input type="text" id="userName" value="UserA">
+        </div>
+        
+        <button id="btnConnect" onclick="connect()">連線</button>
+        <button id="btnDisconnect" onclick="disconnect()" disabled class="disconnect">斷線</button>
+    </div>
+
+    <div class="control-panel">
+        <h3>模擬發送位置</h3>
+        <p>點擊按鈕模擬傳送座標給伺服器：</p>
+        <button id="btnSend" onclick="sendLocation()" disabled>📍 發送隨機座標</button>
+    </div>
+
+    <h3>訊息紀錄：</h3>
+    <div id="log"></div>
+
+    <script>
+        let ws = null;
+
+        function log(msg, type = 'status') {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight; // 自動捲動到底部
+        }
+
+        function connect() {
+            const roomId = document.getElementById('roomId').value;
+            const name = document.getElementById('userName').value;
+
+            if (!roomId) { alert("請輸入 Room ID"); return; }
+
+            // 連線到你的 FastAPI (預設 port 8000)
+            const wsUrl = `ws://localhost:8000/ws/${roomId}`;
+            
+            log(`正在連線到 ${wsUrl} ...`);
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function(event) {
+                log("連線成功！", "status");
+                toggleButtons(true);
+            };
+
+            ws.onmessage = function(event) {
+                // 收到別人的位置資料
+                const data = JSON.parse(event.data);
+                log(`收到來自 ${data.name} 的資料: lat=${data.lat}, lng=${data.lng}`, "received");
+            };
+
+            ws.onclose = function(event) {
+                log("連線已中斷", "status");
+                toggleButtons(false);
+                ws = null;
+            };
+
+            ws.onerror = function(error) {
+                log("發生錯誤", "status");
+                console.error(error);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function sendLocation() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert("尚未連線");
+                return;
+            }
+
+            const name = document.getElementById('userName').value;
+            
+            // 模擬一個隨機座標 (在台北101附近)
+            const baseLat = 25.0330;
+            const baseLng = 121.5654;
+            const randomLat = baseLat + (Math.random() - 0.5) * 0.01;
+            const randomLng = baseLng + (Math.random() - 0.5) * 0.01;
+
+            const payload = {
+                lat: parseFloat(randomLat.toFixed(6)),
+                lng: parseFloat(randomLng.toFixed(6)),
+                name: name,
+                avatar: "https://via.placeholder.com/50" // 假頭貼
+            };
+
+            ws.send(JSON.stringify(payload));
+            log(`已發送座標: ${payload.lat}, ${payload.lng}`, "sent");
+        }
+
+        function toggleButtons(isConnected) {
+            document.getElementById('btnConnect').disabled = isConnected;
+            document.getElementById('roomId').disabled = isConnected;
+            document.getElementById('userName').disabled = isConnected;
+            document.getElementById('btnDisconnect').disabled = !isConnected;
+            document.getElementById('btnSend').disabled = !isConnected;
+        }
+    </script>
+</body>
+</html>
