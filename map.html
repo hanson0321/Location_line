@@ -127,39 +127,48 @@
         let isFlagMode = false;
         let heartbeatInterval, reconnectTimeout;
 
-        // ★ 核心邏輯：LIFF 初始化 + 隨機房號
+        // ★ 核心修復：確保順序是 1.產生房號 2.更新網址 3.執行登入
         window.onload = async function() {
-            // 1. 處理房號邏輯 (在 LIFF init 之前做，確保 UI 先有資料)
-            const urlParams = new URLSearchParams(window.location.search);
-            let currentRoom = urlParams.get('room');
-
-            if (!currentRoom) {
-                // 如果網址沒有 room 參數，產生一組隨機亂碼 (6位數)
-                currentRoom = Math.random().toString(36).substring(2, 8);
-                
-                // 更新瀏覽器網址，這樣分享出去時才會帶有這個房號
-                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + currentRoom;
-                window.history.pushState({path: newUrl}, '', newUrl);
-            }
-            
-            // 填入輸入框
-            document.getElementById('roomId').value = currentRoom;
-
-            // 2. 啟動 LIFF
             try {
+                // 1. 先處理房號 (在 LIFF 初始化之前)
+                const urlParams = new URLSearchParams(window.location.search);
+                let currentRoom = urlParams.get('room');
+
+                // 如果網址沒有房號，產生一個亂碼
+                if (!currentRoom) {
+                    currentRoom = Math.random().toString(36).substring(2, 8);
+                    
+                    // ★ 關鍵：馬上修改瀏覽器網址 (讓 window.location.href 變成有房號的樣子)
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.set('room', currentRoom);
+                    window.history.replaceState(null, '', newUrl.toString());
+                }
+
+                // 先把房號填入框框
+                document.getElementById('roomId').value = currentRoom;
+
+                // 2. 初始化 LIFF
                 await liff.init({ liffId: LIFF_ID });
-                if (!liff.isLoggedIn()) { liff.login(); return; }
                 
+                // 3. 檢查登入 (這時候網址已經帶有房號了)
+                if (!liff.isLoggedIn()) {
+                    // ★ 關鍵：告訴 LINE 驗證完後，請把我送回目前這個「有房號」的網址
+                    liff.login({ redirectUri: window.location.href });
+                    return; // 暫停執行，等待跳轉
+                }
+
+                // 4. 登入成功，抓取資料
                 const profile = await liff.getProfile();
                 myProfile.name = profile.displayName;
                 myProfile.pictureUrl = profile.pictureUrl;
 
             } catch (err) {
                 console.error("LIFF Error", err);
+                // 允許在非 LINE 環境測試 (不報錯)
             }
         };
 
-        // 3. 連線與主要邏輯
+        // --- 連線與主要邏輯 ---
         function connect() {
             const roomId = document.getElementById('roomId').value;
             if (!roomId) return alert("房號錯誤");
@@ -201,7 +210,7 @@
             }
         }
 
-        // 4. 集合點功能
+        // --- 集合點功能 ---
         function toggleFlagMode() {
             isFlagMode = !isFlagMode;
             const btn = document.getElementById('btnFlag');
@@ -251,7 +260,7 @@
             document.getElementById('dist-val').innerText = text;
         }
 
-        // 5. 狀態氣泡功能
+        // --- 狀態氣泡功能 ---
         function sendStatus(msg) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'status', name: myProfile.name, msg: msg }));
@@ -267,7 +276,7 @@
             }
         }
 
-        // 6. GPS 追蹤與基本功能
+        // --- GPS 追蹤 ---
         function startTracking() {
             if (!navigator.geolocation) return;
             navigator.geolocation.watchPosition(
@@ -314,10 +323,9 @@
             }
         }
 
-        // 7. 邀請朋友 (分享目前隨機產生的房號)
+        // --- 分享功能 ---
         function shareToFriends() {
             const currentRoom = document.getElementById('roomId').value;
-            // 確保分享出去的連結帶有目前的房號
             const url = `https://liff.line.me/${LIFF_ID}?room=${currentRoom}`;
             
             if (liff.isApiAvailable('shareTargetPicker')) {
