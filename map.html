@@ -15,11 +15,48 @@
             background: rgba(0, 0, 0, 0.8); color: #fff;
             padding: 10px; border-radius: 30px;
             text-align: center; font-weight: bold; font-size: 1.1rem;
-            z-index: 1000; display: none; /* 預設隱藏，有旗子才顯示 */
+            z-index: 1000; display: none;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             pointer-events: none;
+            transition: all 0.3s ease;
         }
+        #distance-bar.arrived { background: rgba(6, 199, 85, 0.9); transform: scale(1.05); }
         #distance-bar span { color: #00ffea; }
+
+        /* ★ 右上角在線名單 (升級版) */
+        #user-list-panel {
+            position: absolute; top: 60px; right: 10px;
+            background: rgba(0, 0, 0, 0.7); color: white;
+            padding: 8px; border-radius: 12px;
+            z-index: 999; backdrop-filter: blur(5px);
+            max-height: 250px; overflow-y: auto;
+            min-width: 130px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #user-list-panel h4 { 
+            margin: 0 0 8px 0; font-size: 0.9rem; color: #00ffea; 
+            border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        /* 清單項目樣式 */
+        .user-list-item { 
+            display: flex; align-items: center; gap: 8px; margin-bottom: 6px; 
+            padding: 5px; border-radius: 8px; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .user-list-item:active { background: rgba(255,255,255,0.2); transform: scale(0.98); }
+        
+        /* 頭貼樣式 */
+        .user-list-avatar {
+            width: 24px; height: 24px; border-radius: 50%; object-fit: cover;
+            border: 1px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        
+        /* 狀態點 */
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #06c755; box-shadow: 0 0 4px #06c755;}
+        .status-dot.offline { background: #999; box-shadow: none; }
 
         /* 底部：控制面板 */
         #controls {
@@ -30,7 +67,7 @@
             transition: transform 0.3s ease;
         }
 
-        /* 狀態按鈕列 (橫向捲動) */
+        /* 狀態按鈕列 */
         .status-scroll {
             display: flex; overflow-x: auto; gap: 10px; padding-bottom: 10px; margin-bottom: 10px;
             -webkit-overflow-scrolling: touch;
@@ -47,9 +84,23 @@
             flex: 1; padding: 12px; border: none; border-radius: 10px;
             font-size: 1rem; font-weight: bold; cursor: pointer; color: white;
         }
-        #btnFlag { background-color: #ff9800; } /* 橘色 */
-        #btnShare { background-color: #06c755; } /* LINE 綠 */
+        #btnFlag { background-color: #ff9800; }
+        #btnShare { background-color: #06c755; }
         #btnConnect { background-color: #007bff; width: 100%; }
+
+        /* 浮動按鈕群組 */
+        .float-btn-group {
+            position: absolute; bottom: 180px; right: 20px;
+            display: flex; flex-direction: column; gap: 10px; z-index: 900;
+        }
+        .float-btn {
+            width: 50px; height: 50px; background: white; border-radius: 50%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; cursor: pointer; border: none;
+        }
+        #btnSensors.active { background-color: #00ffea; border: 2px solid #007bff; }
+        #btnCenter.active { background-color: #ffdd00; border: 2px solid #ff9800; }
 
         /* 登入表單 */
         #login-form { text-align: center; margin-bottom: 10px; }
@@ -57,7 +108,7 @@
 
         /* 系統通知 */
         #system-msg {
-            position: absolute; bottom: 200px; left: 20px; right: 20px;
+            position: absolute; bottom: 250px; left: 20px; right: 20px;
             z-index: 2000; background-color: rgba(0,0,0,0.7); color: white;
             padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem;
             display: none; pointer-events: none;
@@ -69,13 +120,77 @@
             font-size: 14px; padding: 5px 10px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
         .leaflet-tooltip-bottom:before { border-bottom-color: #333; }
+
+        /* 失聯變灰樣式 */
+        .offline-marker {
+            filter: grayscale(100%) opacity(0.5);
+            transition: filter 0.5s ease;
+        }
+
+        /* 搖一搖呼喚特效 */
+        @keyframes shake-flash {
+            0% { box-shadow: inset 0 0 0 0 rgba(255, 0, 0, 0); }
+            50% { box-shadow: inset 0 0 50px 20px rgba(255, 0, 0, 0.5); }
+            100% { box-shadow: inset 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+        .shake-alert { animation: shake-flash 0.5s ease-in-out 3; }
+
+        /* 使用者標記容器 */
+        .user-marker-container {
+            position: relative; width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .user-avatar {
+            width: 40px; height: 40px; background-size: cover; border-radius: 50%;
+            border: 3px solid #06c755; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 2; position: relative;
+        }
+        .vision-cone {
+            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 40px solid rgba(0, 255, 234, 0.5);
+            border-radius: 50%; z-index: 1; transform-origin: bottom center;
+            display: none; filter: blur(2px);
+        }
+        .motion-badge {
+            position: absolute; bottom: -5px; right: -5px; width: 22px; height: 22px;
+            background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); z-index: 3; border: 1px solid #ddd;
+        }
+        
+        /* 電池條樣式 */
+        .battery-bar-container {
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            width: 30px; height: 6px; background: #333; border-radius: 3px;
+            border: 1px solid #fff; z-index: 3; overflow: hidden;
+        }
+        .battery-level {
+            height: 100%; background: #00ff00; width: 100%; transition: width 0.3s;
+        }
+        .charging-icon {
+            position: absolute; top: -18px; right: -8px; font-size: 12px;
+            color: yellow; text-shadow: 0 0 2px black; z-index: 4; display: none;
+        }
     </style>
 </head>
 <body>
 
     <div id="distance-bar">🏁 距離集合點：<span id="dist-val">計算中...</span></div>
+    
+    <div id="user-list-panel" style="display: none;">
+        <h4>👥 在線名單 (<span id="user-count">0</span>)</h4>
+        <div id="user-list-content"></div>
+    </div>
 
     <div id="system-msg"></div>
+
+    <div class="float-btn-group" id="floatBtns" style="display: none;">
+        <button class="float-btn" id="btnSensors" onclick="enableSensors()">🧭</button>
+        <button class="float-btn" id="btnCenter" onclick="calculateGroupCenter()">⚖️</button>
+        <button class="float-btn" id="btnRecenter" onclick="centerMapOnMe()">🎯</button>
+    </div>
 
     <div id="controls">
         <div id="login-form">
@@ -106,76 +221,71 @@
 
     <div id="map"></div>
 
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
     <script>
-        // 設定區
-        const LIFF_ID = "2008736917-XphF2Hry"; // 您的 LIFF ID
+        const LIFF_ID = "2008736917-XphF2Hry"; // 替換您的 ID
         
-        // 地圖初始化
         const map = L.map('map', { zoomControl: false }).setView([25.0330, 121.5654], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // 變數
         let ws = null;
         let myMarker = null;
-        let flagMarker = null; // 集合點標記
-        const otherMarkers = {};
+        let flagMarker = null;
+        let centerMarker = null;
+        const otherMarkers = {}; // { marker, lastUpdate, history, polyline, avatar }
+        let myHistory = []; 
+        let myPolyline = null;
+
         let myProfile = { name: "User", pictureUrl: "" };
         let myLat = null, myLng = null;
         let isFlagMode = false;
-        let heartbeatInterval, reconnectTimeout;
+        let hasArrived = false;
+        let heartbeatInterval, reconnectTimeout, staleCheckInterval;
+        let wakeLock = null;
+        let sensorsEnabled = false;
+        let lastShakeTime = 0;
+        let batteryLevel = 100;
+        let isCharging = false;
 
-        // ★ 核心修復：確保順序是 1.產生房號 2.更新網址 3.執行登入
         window.onload = async function() {
             try {
-                // 1. 先處理房號 (在 LIFF 初始化之前)
                 const urlParams = new URLSearchParams(window.location.search);
                 let currentRoom = urlParams.get('room');
-
-                // 如果網址沒有房號，產生一個亂碼
                 if (!currentRoom) {
                     currentRoom = Math.random().toString(36).substring(2, 8);
-                    
-                    // ★ 關鍵：馬上修改瀏覽器網址 (讓 window.location.href 變成有房號的樣子)
                     const newUrl = new URL(window.location.href);
                     newUrl.searchParams.set('room', currentRoom);
                     window.history.replaceState(null, '', newUrl.toString());
                 }
-
-                // 先把房號填入框框
                 document.getElementById('roomId').value = currentRoom;
 
-                // 2. 初始化 LIFF
                 await liff.init({ liffId: LIFF_ID });
-                
-                // 3. 檢查登入 (這時候網址已經帶有房號了)
                 if (!liff.isLoggedIn()) {
-                    // ★ 關鍵：告訴 LINE 驗證完後，請把我送回目前這個「有房號」的網址
                     liff.login({ redirectUri: window.location.href });
-                    return; // 暫停執行，等待跳轉
+                    return;
                 }
-
-                // 4. 登入成功，抓取資料
                 const profile = await liff.getProfile();
                 myProfile.name = profile.displayName;
                 myProfile.pictureUrl = profile.pictureUrl;
+                
+                initBattery();
 
-            } catch (err) {
-                console.error("LIFF Error", err);
-                // 允許在非 LINE 環境測試 (不報錯)
-            }
+            } catch (err) { console.error("LIFF Error", err); }
         };
 
-        // --- 連線與主要邏輯 ---
         function connect() {
             const roomId = document.getElementById('roomId').value;
             if (!roomId) return alert("房號錯誤");
 
-            // 切換介面
             document.getElementById('login-form').style.display = 'none';
             document.getElementById('active-panel').style.display = 'block';
+            document.getElementById('floatBtns').style.display = 'flex';
+            document.getElementById('user-list-panel').style.display = 'block';
+
+            requestWakeLock();
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/${roomId}`;
@@ -186,6 +296,8 @@
                     updateStatus("✅ 連線成功");
                     startTracking();
                     startHeartbeat();
+                    startStaleCheck();
+                    updateUserListUI();
                 };
                 ws.onmessage = (e) => {
                     const data = JSON.parse(e.data);
@@ -198,6 +310,21 @@
             } catch(e) { console.error(e); }
         }
 
+        async function initBattery() {
+            if ('getBattery' in navigator) {
+                try {
+                    const battery = await navigator.getBattery();
+                    updateBatteryStatus(battery);
+                    battery.addEventListener('levelchange', () => updateBatteryStatus(battery));
+                    battery.addEventListener('chargingchange', () => updateBatteryStatus(battery));
+                } catch (e) { console.log("Battery API error", e); }
+            }
+        }
+        function updateBatteryStatus(battery) {
+            batteryLevel = Math.floor(battery.level * 100);
+            isCharging = battery.charging;
+        }
+
         function handleMessage(data) {
             if (data.type === 'location') {
                 updateOtherMarker(data);
@@ -207,32 +334,327 @@
                 showStatusBubble(data.name, data.msg);
             } else if (data.type === 'system') {
                 showSystemMsg(data.msg);
+            } else if (data.type === 'ping') {
+                triggerShakeAlert(data.name);
             }
         }
 
-        // --- 集合點功能 ---
+        // ★ 名單 UI 更新 (含跳轉功能)
+        function updateUserListUI() {
+            const listDiv = document.getElementById('user-list-content');
+            const countSpan = document.getElementById('user-count');
+            
+            let users = [];
+            // 自己
+            if (myProfile.name) {
+                users.push({ 
+                    name: myProfile.name + " (我)", 
+                    avatar: myProfile.pictureUrl, 
+                    online: true,
+                    isMe: true 
+                });
+            }
+            // 別人
+            const now = Date.now();
+            for (const name in otherMarkers) {
+                const u = otherMarkers[name];
+                const isOnline = (now - u.lastUpdate) / 1000 < 30;
+                users.push({ 
+                    name: name, 
+                    avatar: u.avatar, // 從資料中讀取
+                    online: isOnline,
+                    isMe: false
+                });
+            }
+
+            countSpan.innerText = users.length;
+            listDiv.innerHTML = users.map(u => `
+                <div class="user-list-item" onclick="jumpToUser('${u.name}', ${u.isMe})">
+                    <img class="user-list-avatar" src="${u.avatar || 'https://via.placeholder.com/40'}" alt="">
+                    <div class="status-dot ${u.online ? '' : 'offline'}"></div>
+                    <span>${u.name}</span>
+                </div>
+            `).join('');
+        }
+
+        // ★ 跳轉功能
+        function jumpToUser(name, isMe) {
+            if (isMe) {
+                centerMapOnMe();
+            } else {
+                // 從 name 移除 " (我)" 以外的部分，其實傳進來的 name 已經是 key
+                const target = otherMarkers[name];
+                if (target && target.marker) {
+                    map.flyTo(target.marker.getLatLng(), 17);
+                    showSystemMsg(`🔍 已定位到 ${name}`);
+                }
+            }
+        }
+
+        function updateOtherMarker(data) {
+            const { name, lat, lng, avatar, motion, battery, charging } = data;
+            const now = Date.now();
+            const motionIcon = motion || '🚶';
+            
+            const batLevel = battery || 100;
+            let batColor = '#00ff00';
+            if (batLevel < 20) batColor = '#ff0000';
+            else if (batLevel < 50) batColor = '#ffa500';
+            const chargingDisplay = charging ? 'block' : 'none';
+
+            if (!otherMarkers[name]) {
+                const icon = L.divIcon({
+                    html: `
+                    <div class="user-marker-container">
+                        <div class="battery-bar-container"><div class="battery-level" style="width:${batLevel}%; background:${batColor};"></div></div>
+                        <div class="charging-icon" style="display:${chargingDisplay}">⚡</div>
+                        <div class="user-avatar" style="background-image:url('${avatar || 'https://via.placeholder.com/40'}'); border-color: #ff3333;"></div>
+                        <div class="motion-badge">${motionIcon}</div>
+                    </div>`,
+                    className: '', iconSize: [40, 40], iconAnchor: [20, 20]
+                });
+                const marker = L.marker([lat, lng], {icon: icon}).addTo(map).bindPopup(name + ` (電量: ${batLevel}%)`);
+                const polyline = L.polyline([], {color: 'red', weight: 3, opacity: 0.5, dashArray: '5, 10'}).addTo(map);
+
+                // ★ 這裡多存一個 avatar 欄位
+                otherMarkers[name] = { marker: marker, lastUpdate: now, history: [[lat, lng]], polyline: polyline, avatar: avatar };
+            } else {
+                const user = otherMarkers[name];
+                user.marker.setLatLng([lat, lng]);
+                user.lastUpdate = now;
+                user.avatar = avatar; // 更新頭像 (如果有的話)
+                
+                const iconDiv = user.marker.getElement();
+                if (iconDiv) {
+                    iconDiv.classList.remove('offline-marker');
+                    const badge = iconDiv.querySelector('.motion-badge');
+                    if (badge) badge.innerText = motionIcon;
+                    const batBar = iconDiv.querySelector('.battery-level');
+                    if (batBar) {
+                        batBar.style.width = `${batLevel}%`;
+                        batBar.style.background = batColor;
+                    }
+                    const chargeIcon = iconDiv.querySelector('.charging-icon');
+                    if (chargeIcon) chargeIcon.style.display = chargingDisplay;
+                }
+                user.marker.setPopupContent(name + ` (電量: ${batLevel}%)`);
+
+                user.history.push([lat, lng]);
+                if (user.history.length > 20) user.history.shift();
+                user.polyline.setLatLngs(user.history);
+            }
+            updateUserListUI(); 
+        }
+
+        function updateMyLocation(lat, lng, motionStatus) {
+            myHistory.push([lat, lng]);
+            if (myHistory.length > 20) myHistory.shift();
+
+            let batColor = '#00ff00';
+            if (batteryLevel < 20) batColor = '#ff0000';
+            else if (batteryLevel < 50) batColor = '#ffa500';
+            const chargingDisplay = isCharging ? 'block' : 'none';
+
+            if (!myMarker) {
+                const icon = L.divIcon({
+                    html: `
+                    <div class="user-marker-container">
+                        <div class="battery-bar-container"><div class="battery-level" style="width:${batteryLevel}%; background:${batColor};"></div></div>
+                        <div class="charging-icon" style="display:${chargingDisplay}">⚡</div>
+                        <div class="vision-cone"></div>
+                        <div class="user-avatar" style="background-image:url('${myProfile.pictureUrl || 'https://via.placeholder.com/40'}');"></div>
+                        <div class="motion-badge">${motionStatus}</div>
+                    </div>`,
+                    className: '', iconSize: [40, 40], iconAnchor: [20, 20]
+                });
+                myMarker = L.marker([lat, lng], {icon: icon}).addTo(map).bindPopup("我");
+                myPolyline = L.polyline([], {color: '#06c755', weight: 3, opacity: 0.5, dashArray: '5, 10'}).addTo(map);
+                map.panTo([lat, lng]);
+            } else {
+                myMarker.setLatLng([lat, lng]);
+                const myIconDiv = myMarker.getElement();
+                if (myIconDiv) {
+                    const badge = myIconDiv.querySelector('.motion-badge');
+                    if (badge) badge.innerText = motionStatus;
+                    const batBar = myIconDiv.querySelector('.battery-level');
+                    if (batBar) {
+                        batBar.style.width = `${batteryLevel}%`;
+                        batBar.style.background = batColor;
+                    }
+                    const chargeIcon = myIconDiv.querySelector('.charging-icon');
+                    if (chargeIcon) chargeIcon.style.display = chargingDisplay;
+                }
+                if (myPolyline) myPolyline.setLatLngs(myHistory);
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'location', lat: lat, lng: lng, name: myProfile.name, avatar: myProfile.pictureUrl, 
+                    motion: motionStatus, battery: batteryLevel, charging: isCharging
+                }));
+            }
+            // 自己移動時也要更新清單狀態
+            updateUserListUI();
+        }
+        
+        function enableSensors() {
+            if (sensorsEnabled) return;
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') activateSensors();
+                        else alert("需要權限才能使用羅盤與搖一搖功能");
+                    })
+                    .catch(console.error);
+            } else {
+                activateSensors();
+            }
+        }
+        function activateSensors() {
+            window.addEventListener('deviceorientation', handleOrientation);
+            window.addEventListener('devicemotion', handleMotion);
+            sensorsEnabled = true;
+            document.getElementById('btnSensors').classList.add('active');
+            const cone = document.querySelector('.vision-cone');
+            if (cone) cone.style.display = 'block';
+            showSystemMsg("羅盤與搖一搖偵測已啟動！");
+        }
+        function handleOrientation(event) {
+            let heading = 0;
+            if (event.webkitCompassHeading) heading = event.webkitCompassHeading;
+            else if (event.alpha) heading = 360 - event.alpha;
+            const cone = document.querySelector('.vision-cone');
+            if (cone) cone.style.transform = `translateX(-50%) rotate(${heading}deg)`;
+        }
+        function handleMotion(event) {
+            const acc = event.accelerationIncludingGravity;
+            if (!acc) return;
+            const strength = Math.sqrt(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
+            if (strength > 25) {
+                const now = Date.now();
+                if (now - lastShakeTime > 2000) {
+                    lastShakeTime = now;
+                    sendPing();
+                }
+            }
+        }
+        function sendPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping', name: myProfile.name }));
+                if (navigator.vibrate) navigator.vibrate(200);
+                showSystemMsg("📳 已發送強力呼喚！");
+            }
+        }
+        function beep() {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 800;
+            osc.type = 'sine';
+            gain.gain.value = 0.1;
+            osc.start();
+            setTimeout(() => osc.stop(), 200);
+        }
+        function triggerShakeAlert(senderName) {
+            showSystemMsg(`📳 ${senderName} 正在大力搖手機呼喚大家！`);
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            try { beep(); setTimeout(beep, 300); } catch(e){}
+            document.body.classList.add('shake-alert');
+            setTimeout(() => document.body.classList.remove('shake-alert'), 1500);
+        }
+        function calculateGroupCenter() {
+            let latSum = 0, lngSum = 0, count = 0;
+            if (myLat !== null) { latSum += myLat; lngSum += myLng; count++; }
+            for (const name in otherMarkers) {
+                const user = otherMarkers[name];
+                if ((Date.now() - user.lastUpdate) / 1000 < 60) {
+                    const pos = user.marker.getLatLng();
+                    latSum += pos.lat;
+                    lngSum += pos.lng;
+                    count++;
+                }
+            }
+            if (count > 0) {
+                const centerLat = latSum / count;
+                const centerLng = lngSum / count;
+                if (centerMarker) map.removeLayer(centerMarker);
+                const starIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="font-size:35px; filter: drop-shadow(0 0 5px rgba(255,215,0,0.8));">⭐</div>`,
+                    iconSize: [35, 35], iconAnchor: [17, 20]
+                });
+                centerMarker = L.marker([centerLat, centerLng], {icon: starIcon}).addTo(map)
+                    .bindPopup("<b>⚖️ 推薦中心點</b><br>大家集合最公平的位置").openPopup();
+                map.flyTo([centerLat, centerLng], 16);
+                showSystemMsg(`已計算 ${count} 人的地理中心點`);
+            } else {
+                showSystemMsg("無法計算：沒有足夠的位置資訊");
+            }
+        }
+        async function requestWakeLock() {
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+        }
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') { await requestWakeLock(); }
+        });
+        function startStaleCheck() {
+            if (staleCheckInterval) clearInterval(staleCheckInterval);
+            staleCheckInterval = setInterval(() => {
+                const now = Date.now();
+                for (const name in otherMarkers) {
+                    const user = otherMarkers[name];
+                    if ((now - user.lastUpdate) / 1000 > 30) {
+                        const iconDiv = user.marker.getElement();
+                        if (iconDiv) iconDiv.classList.add('offline-marker');
+                    }
+                }
+                updateUserListUI(); // 更新名單離線狀態
+            }, 5000);
+        }
+        function startTracking() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    myLat = pos.coords.latitude;
+                    myLng = pos.coords.longitude;
+                    const speedMps = pos.coords.speed || 0;
+                    const speedKmh = speedMps * 3.6;
+                    let motionStatus = '🚶';
+                    if (speedKmh > 40) motionStatus = '🚗';
+                    else if (speedKmh > 15) motionStatus = '🛵';
+                    else if (speedKmh > 5) motionStatus = '🏃';
+
+                    updateMyLocation(myLat, myLng, motionStatus);
+                    checkGeofence(); 
+                },
+                err => console.error(err),
+                { enableHighAccuracy: true }
+            );
+        }
+        function centerMapOnMe() {
+            if (myLat && myLng) map.flyTo([myLat, myLng], 17);
+            else showSystemMsg("尚未取得您的位置");
+        }
         function toggleFlagMode() {
             isFlagMode = !isFlagMode;
             const btn = document.getElementById('btnFlag');
             if (isFlagMode) {
-                btn.innerText = "📍 請點擊地圖插旗";
-                btn.style.backgroundColor = "#dc3545"; // 紅色提示
-                showSystemMsg("請點擊地圖任一處設定集合點");
+                btn.innerText = "📍 請點擊地圖";
+                btn.style.backgroundColor = "#dc3545";
+                showSystemMsg("請點擊地圖設定集合點");
             } else {
                 btn.innerText = "🚩 設定集合點";
                 btn.style.backgroundColor = "#ff9800";
             }
         }
-
         map.on('click', function(e) {
             if (isFlagMode && ws) {
-                const lat = e.latlng.lat;
-                const lng = e.latlng.lng;
-                ws.send(JSON.stringify({ type: 'flag', lat: lat, lng: lng, setter: myProfile.name }));
+                ws.send(JSON.stringify({ type: 'flag', lat: e.latlng.lat, lng: e.latlng.lng, setter: myProfile.name }));
                 toggleFlagMode();
             }
         });
-
         function updateFlag(lat, lng, setterName) {
             if (flagMarker) map.removeLayer(flagMarker);
             const flagIcon = L.divIcon({
@@ -242,92 +664,56 @@
             });
             flagMarker = L.marker([lat, lng], {icon: flagIcon}).addTo(map)
                 .bindPopup(`<b>集合點</b><br>由 ${setterName} 設定`).openPopup();
-            
             showSystemMsg(`${setterName} 更新了集合點！`);
             document.getElementById('distance-bar').style.display = 'block';
-            calculateDistance();
+            hasArrived = false;
+            document.getElementById('distance-bar').classList.remove('arrived');
+            checkGeofence();
         }
-
-        function calculateDistance() {
+        function checkGeofence() {
             if (!flagMarker || myLat === null) return;
             const from = L.latLng(myLat, myLng);
             const to = flagMarker.getLatLng();
             const meters = from.distanceTo(to);
-            let text = "";
-            if (meters < 10) text = "已抵達！🎉";
-            else if (meters < 1000) text = `${Math.round(meters)} 公尺`;
-            else text = `${(meters/1000).toFixed(1)} 公里`;
+            let text = meters < 30 ? "🎉 已抵達集合點！" : meters < 1000 ? `${Math.round(meters)} 公尺` : `${(meters/1000).toFixed(1)} 公里`;
             document.getElementById('dist-val').innerText = text;
-        }
 
-        // --- 狀態氣泡功能 ---
+            if (meters < 30 && !hasArrived) {
+                hasArrived = true;
+                triggerCelebration();
+                sendStatus('🎉 我抵達集合點了！');
+                document.getElementById('distance-bar').classList.add('arrived');
+            } else if (meters > 50) {
+                hasArrived = false;
+                document.getElementById('distance-bar').classList.remove('arrived');
+            }
+        }
+        function triggerCelebration() {
+            var duration = 3000;
+            var end = Date.now() + duration;
+            (function frame() {
+                confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
+                confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+            showSystemMsg("🎉 恭喜抵達！");
+        }
         function sendStatus(msg) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'status', name: myProfile.name, msg: msg }));
                 showStatusBubble(myProfile.name, msg); 
             }
         }
-
         function showStatusBubble(name, msg) {
-            let targetMarker = (name === myProfile.name) ? myMarker : otherMarkers[name];
+            let targetMarker = (name === myProfile.name) ? myMarker : (otherMarkers[name] ? otherMarkers[name].marker : null);
             if (targetMarker) {
                 targetMarker.bindTooltip(msg, { permanent: true, direction: 'top', className: 'status-bubble', offset: [0, -20] }).openTooltip();
                 setTimeout(() => { targetMarker.unbindTooltip(); }, 5000);
             }
         }
-
-        // --- GPS 追蹤 ---
-        function startTracking() {
-            if (!navigator.geolocation) return;
-            navigator.geolocation.watchPosition(
-                (pos) => {
-                    myLat = pos.coords.latitude;
-                    myLng = pos.coords.longitude;
-                    updateMyLocation(myLat, myLng);
-                    calculateDistance();
-                },
-                err => console.error(err),
-                { enableHighAccuracy: true }
-            );
-        }
-
-        function updateMyLocation(lat, lng) {
-            if (!myMarker) {
-                const icon = L.divIcon({
-                    html: `<div style="background-image:url('${myProfile.pictureUrl || 'https://via.placeholder.com/40'}');width:40px;height:40px;background-size:cover;border-radius:50%;border:3px solid #06c755;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>`,
-                    className: '', iconSize: [40, 40], iconAnchor: [20, 20]
-                });
-                myMarker = L.marker([lat, lng], {icon: icon}).addTo(map).bindPopup("我");
-                map.panTo([lat, lng]);
-            } else {
-                myMarker.setLatLng([lat, lng]);
-            }
-
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'location', lat: lat, lng: lng, name: myProfile.name, avatar: myProfile.pictureUrl
-                }));
-            }
-        }
-
-        function updateOtherMarker(data) {
-            const { name, lat, lng, avatar } = data;
-            if (otherMarkers[name]) {
-                otherMarkers[name].setLatLng([lat, lng]);
-            } else {
-                const icon = L.divIcon({
-                    html: `<div style="background-image:url('${avatar || 'https://via.placeholder.com/40'}');width:40px;height:40px;background-size:cover;border-radius:50%;border:3px solid #ff3333;box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>`,
-                    className: '', iconSize: [40, 40], iconAnchor: [20, 20]
-                });
-                otherMarkers[name] = L.marker([lat, lng], {icon: icon}).addTo(map).bindPopup(name);
-            }
-        }
-
-        // --- 分享功能 ---
         function shareToFriends() {
             const currentRoom = document.getElementById('roomId').value;
             const url = `https://liff.line.me/${LIFF_ID}?room=${currentRoom}`;
-            
             if (liff.isApiAvailable('shareTargetPicker')) {
                 liff.shareTargetPicker([{
                     type: "flex", altText: "加入地圖",
@@ -341,7 +727,6 @@
                 navigator.clipboard.writeText(url).then(() => alert("網址已複製"));
             }
         }
-
         function disconnect() { if(ws) ws.close(); location.reload(); }
         function scheduleReconnect() { if(reconnectTimeout) clearTimeout(reconnectTimeout); reconnectTimeout = setTimeout(connect, 3000); }
         function startHeartbeat() { if(heartbeatInterval) clearInterval(heartbeatInterval); heartbeatInterval = setInterval(() => { if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'ping'})); }, 30000); }
